@@ -1,0 +1,8 @@
+product:
+  name: ManagedReporting
+  version: 5.8.0
+  developer: Your Organization
+  identifier: com.github.munkireport
+postinstall_action: none
+signing_certificate: 
+install_location: C:\ProgramData\
