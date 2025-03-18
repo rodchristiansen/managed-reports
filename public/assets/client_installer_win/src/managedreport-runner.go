@@ -10,7 +10,25 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+
+	"gopkg.in/yaml.v2"
 )
+
+type PassphraseConfig struct {
+	Passphrase string `yaml:"Passphrase"`
+}
+
+func loadPassphrase(path string) string {
+	passphrase := ""
+	data, err := os.ReadFile(path)
+	if err == nil {
+		var cfg PassphraseConfig
+		if err = yaml.Unmarshal(data, &cfg); err == nil {
+			passphrase = cfg.Passphrase
+		}
+	}
+	return passphrase
+}
 
 type Config struct {
 	BaseURL string   `json:"BaseURL"`
@@ -40,14 +58,20 @@ func runScript(scriptPath string, cachePath string) error {
 	return ioutil.WriteFile(cachePath, output, 0644)
 }
 
-func postReport(cfg Config, serialNumber string, module string, data []byte) error {
+func postReport(cfg Config, serialNumber string, module string, data []byte, baseDir string) error {
 	postURL := cfg.BaseURL + "report/check_in/"
+
+	passphrase := loadPassphrase(filepath.Join(baseDir, "config", "passphrase.yaml"))
 
 	payload := map[string]string{
 		"serial_number": serialNumber,
 		"platform":      "windows",
 		"module":        module,
 		"data":          string(data),
+	}
+
+	if passphrase != "" {
+		payload["passphrase"] = passphrase
 	}
 
 	payloadBytes, err := json.Marshal(payload)
@@ -113,7 +137,7 @@ func main() {
 			continue
 		}
 
-		err = postReport(cfg, serialNumber, script, data)
+		err = postReport(cfg, serialNumber, script, data, baseDir)
 		if err != nil {
 			log.Printf("Failed posting %s data: %v", script, err)
 			continue

@@ -23,7 +23,22 @@ class Install extends Controller
      **/
     public function index()
     {
-        $this->modules();
+        $isWindows = false;
+    
+        // Simple detection logic based on User-Agent
+        if (strpos($_SERVER['HTTP_USER_AGENT'], 'Windows') !== false) {
+            $isWindows = true;
+        }
+    
+        $data['baseurl'] = conf('webhost');
+    
+        if ($isWindows) {
+            // Clearly serve the Windows install script
+            $this->view('install/install_script_windows', $data);
+        } else {
+            // Serve the existing macOS install script
+            $this->view('install/install_script', $data);
+        }
     }
 
     /**
