@@ -14,9 +14,12 @@ RUN apt-get update && \
       libxml2-dev && \
     rm -rf /var/lib/apt/lists/*
 
-# Configure & install PHP extensions (no more --with-libdir=...)
+# Configure & install PHP extensions
 RUN docker-php-ext-configure ldap && \
     docker-php-ext-install -j"$(nproc)" curl pdo_mysql soap ldap zip
+
+# Create a custom .ini file to increase PHP upload limits
+RUN echo "upload_max_filesize = 50M\npost_max_size = 50M" > /usr/local/etc/php/conf.d/uploads.ini
 
 # Set Composer environment variables
 ENV COMPOSER_ALLOW_SUPERUSER=1
@@ -40,9 +43,6 @@ RUN composer install --no-dev && \
 # Create the app/db directory and adjust permissions
 RUN mkdir -p app/db && \
     chmod -R 777 app/db
-
-# (Removed "php please migrate" so it doesn't fail during build)
-# If you need migrations, run them at startup or in a separate deployment step.
 
 # Remove Apache’s default web directory and link to MunkiReport’s public folder
 RUN rm -rf /var/www/html && \
