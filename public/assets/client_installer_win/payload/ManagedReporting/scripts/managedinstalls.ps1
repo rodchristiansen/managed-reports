@@ -1,46 +1,37 @@
 # managedinstalls.ps1 - Combined Cimian Software Inventory & Logs
 
-Import-Module "$PSScriptRoot\..\lib\reportcommon.psm1"
+# Ensure powershell-yaml module is installed
+if (-not (Get-Module -ListAvailable -Name powershell-yaml)) {
+    Install-Module powershell-yaml -Force -Scope AllUsers
+}
+Import-Module powershell-yaml
 
-# Paths
-$logPath   = "C:\ProgramData\ManagedInstalls\Logs\install.log"
+# Existing paths
+$yamlLogPath = "C:\ProgramData\ManagedInstalls\Logs\CimianReport.yaml"
 $outputPath = "$PSScriptRoot\..\cache\managedinstalls.json"
 
-# Collect installed software (managed by Cimian)
-$softwareItems = Get-CimInstance -ClassName Win32_Product | Select-Object Name, Version, InstallDate
-
-$managedSoftwareList = @()
-foreach ($software in $softwareItems) {
-    $managedSoftwareList += @{
-        name        = $software.Name
-        version     = $software.Version
-        installDate = $software.InstallDate
-        status      = "installed"  # Replace with real Cimian-managed status
-    }
-}
-
-# Collect recent Cimian log entries
-$recentLogs = @()
-if (Test-Path $logPath) {
-    $logLines = Get-Content $logPath -Tail 100
-    foreach ($line in $logLines) {
-        if ($line -match "^\[(.+?)\]\s+(\w+)\s+(.*)$") {
-            $recentLogs += @{
-                timestamp = $matches[1]
-                level     = $matches[2]
-                message   = $matches[3]
-            }
+# Read and convert YAML structured logs
+$structuredLogs = @()
+if (Test-Path $yamlLogPath) {
+    $yamlContent = Get-Content $yamlLogPath -Raw
+    $yamlEntries = ConvertFrom-Yaml $yamlContent
+    foreach ($entry in $yamlEntries) {
+        $structuredLogs += @{
+            timestamp = $entry.timestamp
+            level     = $entry.level
+            message   = $entry.message
         }
     }
 } else {
-    Write-Warning "Cimian log file not found at $logPath"
+    Write-Warning "CimianReport.yaml not found."
 }
 
-# Final combined output
+# Combine into final report
 $report = @{
     softwareInventory = $managedSoftwareList
     recentLogs        = $recentLogs
+    structuredLogs    = $structuredLogs
 }
 
-# Write combined JSON for MunkiReport
+# Write combined JSON
 $report | ConvertTo-Json -Depth 6 | Out-File -FilePath $outputPath -Encoding UTF8
