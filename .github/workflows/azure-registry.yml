@@ -31,5 +31,3 @@ jobs:
           file: ./Dockerfile
           push: true
           tags: containersdevopsecu.azurecr.io/managedreport-custom:latest
-          build-args: |
-            ROOT_PASS=${{ secrets.SSH_PASSWORD }}
