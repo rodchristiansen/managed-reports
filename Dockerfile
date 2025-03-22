@@ -62,21 +62,21 @@ RUN apt-get update && \
     apt-get install -y openssh-server && \
     mkdir /var/run/sshd
 
-# Set a root password (use something secure in production!)
-RUN echo 'root:Docker!' | chpasswd
+# Set a root password
+ARG ROOT_PASS
+RUN echo 'root:${ROOT_PASS}' | chpasswd
 
-# Enable password-based SSH, change port to 2222
-RUN sed -i 's/#PasswordAuthentication yes/PasswordAuthentication yes/' /etc/ssh/sshd_config && \
-    sed -i 's/Port 22/Port 2222/g' /etc/ssh/sshd_config
+# Enable password-based SSH, switch to port 2222
+RUN sed -i 's/^#\?Port 22/Port 2222/' /etc/ssh/sshd_config && \
+    sed -i 's/^#PermitRootLogin prohibit-password/PermitRootLogin yes/' /etc/ssh/sshd_config && \
+    sed -i 's/^PermitRootLogin prohibit-password/PermitRootLogin yes/' /etc/ssh/sshd_config && \
+    sed -i 's/#PasswordAuthentication yes/PasswordAuthentication yes/' /etc/ssh/sshd_config
 
-# Expose both HTTP (80) and SSH (2222)
 EXPOSE 80 2222
 
-# Create start script that launches SSH then Apache
-RUN echo '#!/bin/bash\n\
-service ssh start\n\
-apache2-foreground\n' > /usr/local/bin/start.sh \
+RUN echo '#!/bin/bash' > /usr/local/bin/start.sh \
+ && echo 'service ssh start' >> /usr/local/bin/start.sh \
+ && echo 'apache2-foreground' >> /usr/local/bin/start.sh \
  && chmod +x /usr/local/bin/start.sh
 
-# Default CMD => calls /usr/local/bin/start.sh
 CMD ["start.sh"]
