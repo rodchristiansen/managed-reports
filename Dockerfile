@@ -55,8 +55,28 @@ RUN sed -i 's/ServerTokens OS/ServerTokens Prod/' /etc/apache2/conf-available/se
 # Enable Apache’s rewrite module
 RUN a2enmod rewrite
 
-# Expose the web server port
-EXPOSE 80
+# ------------------ SSH ADDITIONS BEGIN ------------------
 
-# Start Apache in the foreground
-CMD ["apache2-foreground"]
+# Install OpenSSH
+RUN apt-get update && \
+    apt-get install -y openssh-server && \
+    mkdir /var/run/sshd
+
+# Set a root password (use something secure in production!)
+RUN echo 'root:Docker!' | chpasswd
+
+# Enable password-based SSH, change port to 2222
+RUN sed -i 's/#PasswordAuthentication yes/PasswordAuthentication yes/' /etc/ssh/sshd_config && \
+    sed -i 's/Port 22/Port 2222/g' /etc/ssh/sshd_config
+
+# Expose both HTTP (80) and SSH (2222)
+EXPOSE 80 2222
+
+# Copy start script that launches SSH then Apache
+COPY start.sh /start.sh
+RUN chmod +x /start.sh
+
+# ------------------ SSH ADDITIONS END --------------------
+
+# Replace default CMD with our script
+CMD ["/bin/bash", "/start.sh"]
