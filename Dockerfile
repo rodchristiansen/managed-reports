@@ -57,26 +57,28 @@ RUN a2enmod rewrite
 
 # ------------------ SSH ADDITIONS BEGIN ------------------
 
-# Install OpenSSH
+# 1) Install OpenSSH
 RUN apt-get update && \
     apt-get install -y openssh-server && \
-    mkdir /var/run/sshd
+    rm -rf /var/lib/apt/lists/*
 
-# Set a root password
-ARG ROOT_PASS
-RUN echo 'root:${ROOT_PASS}' | chpasswd
+# 2) Create a non-root user (e.g., 'azureuser') for SSH
+RUN useradd -m -s /bin/bash azureuser
 
-# Enable password-based SSH, switch to port 2222
-RUN sed -i 's/^#\?Port 22/Port 2222/' /etc/ssh/sshd_config && \
-    sed -i 's/^#PermitRootLogin prohibit-password/PermitRootLogin yes/' /etc/ssh/sshd_config && \
-    sed -i 's/^PermitRootLogin prohibit-password/PermitRootLogin yes/' /etc/ssh/sshd_config && \
-    sed -i 's/#PasswordAuthentication yes/PasswordAuthentication yes/' /etc/ssh/sshd_config
+# 3) Configure SSH on port 2222 & disable root login
+# Azure injects ephemeral SSH credentials when you run `az webapp ssh`
+RUN sed -i 's/^#Port .*/Port 2222/' /etc/ssh/sshd_config && \
+    sed -i 's/^#\?PermitRootLogin.*/PermitRootLogin no/' /etc/ssh/sshd_config && \
+    sed -i 's/^#\?PasswordAuthentication.*/PasswordAuthentication yes/' /etc/ssh/sshd_config && \
+    echo 'AllowUsers azureuser' >> /etc/ssh/sshd_config
 
+# 4) Expose Apache (80) & SSH (2222)
 EXPOSE 80 2222
 
-RUN echo '#!/bin/bash' > /usr/local/bin/start.sh \
- && echo 'service ssh start' >> /usr/local/bin/start.sh \
- && echo 'apache2-foreground' >> /usr/local/bin/start.sh \
- && chmod +x /usr/local/bin/start.sh
+# 5) Start script: run SSH, then Apache
+RUN echo '#!/bin/bash' > /usr/local/bin/start.sh && \
+    echo 'service ssh start' >> /usr/local/bin/start.sh && \
+    echo 'apache2-foreground' >> /usr/local/bin/start.sh && \
+    chmod +x /usr/local/bin/start.sh
 
-CMD ["start.sh"]
+CMD ["/usr/local/bin/start.sh"]
