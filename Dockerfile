@@ -72,11 +72,11 @@ RUN sed -i 's/#PasswordAuthentication yes/PasswordAuthentication yes/' /etc/ssh/
 # Expose both HTTP (80) and SSH (2222)
 EXPOSE 80 2222
 
-# Copy start script that launches SSH then Apache
-COPY start.sh /start.sh
-RUN chmod +x /start.sh
+# Create start script that launches SSH then Apache
+RUN echo '#!/bin/bash\n\
+service ssh start\n\
+apache2-foreground\n' > /usr/local/bin/start.sh \
+ && chmod +x /usr/local/bin/start.sh
 
-# ------------------ SSH ADDITIONS END --------------------
-
-# Replace default CMD with our script
-CMD ["/bin/bash", "/start.sh"]
+# Default CMD => calls /usr/local/bin/start.sh
+CMD ["start.sh"]
