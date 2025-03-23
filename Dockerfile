@@ -62,6 +62,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends openssh-server 
     apt-get clean && rm -rf /var/lib/apt/lists/*
 
 # Adjust sshd_config: set port to 2222, enable root login, pubkey and password authentication, and enable PAM
+RUN echo 'root:${ROOT_PASS}' | chpasswd
 RUN ssh-keygen -A && \
     sed -i 's|^#Port .*|Port 2222|' /etc/ssh/sshd_config && \
     sed -i 's|^#PermitRootLogin .*|PermitRootLogin yes|' /etc/ssh/sshd_config && \
