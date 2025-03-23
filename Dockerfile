@@ -62,13 +62,12 @@ RUN apt-get update && \
     apt-get install -y openssh-server && \
     rm -rf /var/lib/apt/lists/*
 
-# 2) Configure SSH on port 2222 & disable root login
-# Azure injects ephemeral SSH credentials when you run `az webapp ssh`
-RUN sed -i 's/^#Port .*/Port 2222/' /etc/ssh/sshd_config && \
-    sed -i 's/^#\?PermitRootLogin.*/PermitRootLogin yes/' /etc/ssh/sshd_config && \
-    sed -i 's/^#\?PubkeyAuthentication.*/PubkeyAuthentication yes/' /etc/ssh/sshd_config && \
-    sed -i 's/^#\\?PasswordAuthentication.*/PasswordAuthentication yes/' /etc/ssh/sshd_config && \
-    echo \"AllowUsers root\" >> /etc/ssh/sshd_config
+# 2) Configure SSH on port 2222 & allow root password logins
+RUN sed -i 's/^#Port .*/Port 2222/' /etc/ssh/sshd_config \
+    && sed -i 's/^#\?PermitRootLogin.*/PermitRootLogin yes/' /etc/ssh/sshd_config \
+    && sed -i 's/^#\?PubkeyAuthentication.*/PubkeyAuthentication yes/' /etc/ssh/sshd_config \
+    && sed -i 's/^#\?PasswordAuthentication.*/PasswordAuthentication yes/' /etc/ssh/sshd_config \
+    && echo 'AllowUsers root' >> /etc/ssh/sshd_config
 
 # 3) Expose Apache (80) & SSH (2222)
 EXPOSE 80 2222
