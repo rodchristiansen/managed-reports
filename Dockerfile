@@ -61,28 +61,20 @@ RUN a2enmod rewrite
 RUN apt-get update && apt-get install -y --no-install-recommends openssh-server && \
     apt-get clean && rm -rf /var/lib/apt/lists/*
 
-# Adjust sshd_config (port 2222, root login allowed, password login, etc.)
+# Adjust sshd_config: set port to 2222, enable root login, pubkey and password authentication, and enable PAM
 RUN ssh-keygen -A && \
-    sed -i 's/^#Port .*/Port 2222/' /etc/ssh/sshd_config && \
-    sed -i 's/^#\\?PermitRootLogin.*/PermitRootLogin yes/' /etc/ssh/sshd_config && \
-    sed -i 's/^#\\?PubkeyAuthentication.*/PubkeyAuthentication yes/' /etc/ssh/sshd_config && \
-    sed -i 's/^#\\?PasswordAuthentication.*/PasswordAuthentication yes/' /etc/ssh/sshd_config && \
-    sed -i 's/^#\\?UsePAM.*/UsePAM yes/' /etc/ssh/sshd_config
+    sed -i 's|^#Port .*|Port 2222|' /etc/ssh/sshd_config && \
+    sed -i 's|^#PermitRootLogin .*|PermitRootLogin yes|' /etc/ssh/sshd_config && \
+    sed -i 's|^#PubkeyAuthentication .*|PubkeyAuthentication yes|' /etc/ssh/sshd_config && \
+    sed -i 's|^#PasswordAuthentication .*|PasswordAuthentication yes|' /etc/ssh/sshd_config && \
+    sed -i 's|^#UsePAM .*|UsePAM yes|' /etc/ssh/sshd_config
 
 # Copy in our entrypoint script
 COPY entrypoint.sh /entrypoint.sh
 RUN chmod +x /entrypoint.sh
 
-# Expose SSH on 2222
+# Expose necessary ports: 80 for Apache and 2222 for SSH
 EXPOSE 80 2222
 
-# Launch the script that prints sshd_config and then starts SSH + Apache
+# Launch the script that prints sshd_config then starts SSH and Apache
 CMD ["/entrypoint.sh"]
-
-# # 4) Start script: run SSH, then Apache
-# RUN echo '#!/bin/bash' > /usr/local/bin/start.sh && \
-#     echo 'service ssh start' >> /usr/local/bin/start.sh && \
-#     echo 'apache2-foreground' >> /usr/local/bin/start.sh && \
-#     chmod +x /usr/local/bin/start.sh
-
-# CMD ["/usr/local/bin/start.sh"]
