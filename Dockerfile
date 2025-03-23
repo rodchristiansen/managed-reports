@@ -57,27 +57,32 @@ RUN a2enmod rewrite
 
 # ------------------ SSH SETUP ------------------
 
-# 1) Install OpenSSH
-RUN apt-get update && \
-    apt-get install -y openssh-server && \
-    rm -rf /var/lib/apt/lists/*
+# Install SSH server
+RUN apt-get update && apt-get install -y --no-install-recommends openssh-server && \
+    apt-get clean && rm -rf /var/lib/apt/lists/*
 
-# 2) Configure SSH on port 2222 & allow root password logins
-RUN apt-get update && apt-get install -y openssh-server && \
-    ssh-keygen -A && \
+# Adjust sshd_config (port 2222, root login allowed, password login, etc.)
+RUN ssh-keygen -A && \
     sed -i 's/^#Port .*/Port 2222/' /etc/ssh/sshd_config && \
     sed -i 's/^#\\?PermitRootLogin.*/PermitRootLogin yes/' /etc/ssh/sshd_config && \
     sed -i 's/^#\\?PubkeyAuthentication.*/PubkeyAuthentication yes/' /etc/ssh/sshd_config && \
     sed -i 's/^#\\?PasswordAuthentication.*/PasswordAuthentication yes/' /etc/ssh/sshd_config && \
     sed -i 's/^#\\?UsePAM.*/UsePAM yes/' /etc/ssh/sshd_config
 
-# 3) Expose Apache (80) & SSH (2222)
+# Copy in our entrypoint script
+COPY entrypoint.sh /entrypoint.sh
+RUN chmod +x /entrypoint.sh
+
+# Expose SSH on 2222
 EXPOSE 80 2222
 
-# 4) Start script: run SSH, then Apache
-RUN echo '#!/bin/bash' > /usr/local/bin/start.sh && \
-    echo 'service ssh start' >> /usr/local/bin/start.sh && \
-    echo 'apache2-foreground' >> /usr/local/bin/start.sh && \
-    chmod +x /usr/local/bin/start.sh
+# Launch the script that prints sshd_config and then starts SSH + Apache
+CMD ["/entrypoint.sh"]
 
-CMD ["/usr/local/bin/start.sh"]
+# # 4) Start script: run SSH, then Apache
+# RUN echo '#!/bin/bash' > /usr/local/bin/start.sh && \
+#     echo 'service ssh start' >> /usr/local/bin/start.sh && \
+#     echo 'apache2-foreground' >> /usr/local/bin/start.sh && \
+#     chmod +x /usr/local/bin/start.sh
+
+# CMD ["/usr/local/bin/start.sh"]

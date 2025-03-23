@@ -27,3 +27,4 @@ local/modules/*
 .php_cs.cache
 composer
 storage/framework/down
+.vscode
