@@ -29,7 +29,10 @@ switch ($driver) {
       'ssl_ca' => env('CONNECTION_SSL_CA'),
       'ssl_capath' => env('CONNECTION_SSL_CAPATH'),
       'ssl_cipher' => env('CONNECTION_SSL_CIPHER'),
-      'options' => env('CONNECTION_OPTIONS', []),
+      'options'   => [
+          PDO::MYSQL_ATTR_SSL_CA => env('CONNECTION_SSL_CA'),
+          PDO::MYSQL_ATTR_SSL_VERIFY_SERVER_CERT => env('PDO_MYSQL_ATTR_SSL_VERIFY_SERVER_CERT', false)
+      ],
     ];
   default:
       throw new \Exception(sprintf("Unknown driver: %s", $driver), 1);
