@@ -21,9 +21,11 @@ RUN docker-php-ext-configure ldap && \
 # Create a custom .ini file to increase PHP upload limits
 RUN echo "upload_max_filesize = 50M\npost_max_size = 50M" > /usr/local/etc/php/conf.d/uploads.ini
 
-# Embed DigiCert CA directly into container
-COPY DigiCertGlobalRootCA.crt.pem /usr/local/share/ca-certificates/DigiCertGlobalRootCA.crt.pem
-RUN chmod 644 /usr/local/share/ca-certificates/DigiCertGlobalRootCA.crt.pem \
+# Embed SSO cert and DigiCert CA in container
+COPY certs/AzureFederatedSSO.crt.pem /var/munkireport/local/certs/idp.crt
+COPY certs/DigiCertGlobalRootCA.crt.pem /usr/local/share/ca-certificates/DigiCertGlobalRootCA.crt.pem
+
+RUN chmod 644 /usr/local/share/ca-certificates/DigiCertGlobalRootCA.crt.pem /var/munkireport/local/certs/idp.crt \
     && update-ca-certificates --fresh
 
 # Set Composer environment variables
