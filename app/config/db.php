@@ -24,15 +24,9 @@ switch ($driver) {
             'collation'   => env('CONNECTION_COLLATION', 'utf8mb4_unicode_ci'),
             'strict'      => env('CONNECTION_STRICT', true),
             'engine'      => env('CONNECTION_ENGINE', 'InnoDB'),
-            'ssl_enabled' => env('CONNECTION_SSL_ENABLED', true),
-            'ssl_key'     => env('CONNECTION_SSL_KEY', null),
-            'ssl_cert'    => env('CONNECTION_SSL_CERT', null),
-            'ssl_ca'      => env('CONNECTION_SSL_CA', null),
-            'ssl_capath'  => env('CONNECTION_SSL_CAPATH', null),
-            'ssl_cipher'  => env('CONNECTION_SSL_CIPHER', null),
-            'options'     => [
-                PDO::MYSQL_ATTR_SSL_CA    => env('CONNECTION_SSL_CA', null),
-                PDO::MYSQL_ATTR_SSL_VERIFY_SERVER_CERT => env('PDO_MYSQL_ATTR_SSL_VERIFY_SERVER_CERT', true),
+            'options' => [
+                PDO::MYSQL_ATTR_SSL_CA => env('CONNECTION_SSL_CA'),
+                PDO::MYSQL_ATTR_SSL_VERIFY_SERVER_CERT => env('PDO_MYSQL_ATTR_SSL_VERIFY_SERVER_CERT', false),
             ],
         ];
 
