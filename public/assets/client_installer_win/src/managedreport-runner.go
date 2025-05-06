@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"encoding/json"
+	"flag"
 	"fmt"
 	"io"
 	"log"
@@ -65,7 +66,7 @@ func runScript(path string) ([]byte, error) {
 // --------------------------------------------------------------------
 // POST helpers
 // --------------------------------------------------------------------
-func postReport(cfg Config, module string, data []byte) error {
+func postReport(cfg Config, module string, data []byte, verbose bool) error {
 	url := strings.TrimRight(cfg.BaseURL, "/") + "/submit/" + module
 
 	req, err := http.NewRequest("POST", url, bytes.NewReader(data))
@@ -80,10 +81,13 @@ func postReport(cfg Config, module string, data []byte) error {
 		return err
 	}
 	defer resp.Body.Close()
+	body, _ := io.ReadAll(resp.Body)
 
+	if verbose {
+		log.Printf("→ %s %s\n%s", module, resp.Status, body)
+	}
 	if resp.StatusCode >= 300 {
-		b, _ := io.ReadAll(resp.Body)
-		return fmt.Errorf("submit %s → %s: %s", module, resp.Status, string(b))
+		return fmt.Errorf("submit %s → %s: %s", module, resp.Status, body)
 	}
 	return nil
 }
@@ -92,6 +96,9 @@ func postReport(cfg Config, module string, data []byte) error {
 // Main
 // --------------------------------------------------------------------
 func main() {
+	// --- CLI flags ---------------------------------------------------
+	verbose := flag.Bool("v", false, "log to console as well as file")
+	flag.Parse()
 	// ----- bootstrap -------------------------------------------------
 	if err := os.MkdirAll(filepath.Join(baseDir, "logs"), 0755); err != nil {
 		log.Fatalf("mkdir logs: %v", err)
@@ -103,7 +110,11 @@ func main() {
 		log.Fatalf("open log: %v", err)
 	}
 	defer logFile.Close()
-	log.SetOutput(logFile)
+	if *verbose {
+		log.SetOutput(io.MultiWriter(os.Stdout, logFile))
+	} else {
+		log.SetOutput(logFile)
+	}
 
 	cfg, err := loadConfig(filepath.Join(baseDir, "config", "preferences.json"))
 	if err != nil {
@@ -159,7 +170,7 @@ func main() {
 			continue
 		}
 
-		if err := postReport(cfg, mod, payload); err != nil {
+		if err := postReport(cfg, mod, payload, *verbose); err != nil {
 			log.Printf("submit %s: %v", script, err)
 			continue
 		}
