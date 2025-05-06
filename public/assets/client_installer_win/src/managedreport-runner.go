@@ -4,145 +4,165 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"log"
 	"net/http"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 
 	"gopkg.in/yaml.v2"
 )
 
-type PassphraseConfig struct {
+const (
+	baseDir = `C:\ProgramData\ManagedReporting`
+)
+
+// --------------------------------------------------------------------
+// Config helpers
+// --------------------------------------------------------------------
+type passphraseCfg struct {
 	Passphrase string `yaml:"Passphrase"`
 }
 
 func loadPassphrase(path string) string {
-	passphrase := ""
-	data, err := os.ReadFile(path)
-	if err == nil {
-		var cfg PassphraseConfig
-		if err = yaml.Unmarshal(data, &cfg); err == nil {
-			passphrase = cfg.Passphrase
-		}
+	b, _ := os.ReadFile(path)
+	var cfg passphraseCfg
+	if yaml.Unmarshal(b, &cfg) == nil {
+		return cfg.Passphrase
 	}
-	return passphrase
+	return ""
 }
 
 type Config struct {
 	BaseURL string   `json:"BaseURL"`
 	Token   string   `json:"Token"`
-	Scripts []string `json:"Scripts"`
+	Scripts []string `json:"Scripts"` // optional override
 }
 
 func loadConfig(path string) (Config, error) {
-	var cfg Config
-	file, err := os.Open(path)
+	f, err := os.Open(path)
 	if err != nil {
-		return cfg, err
+		return Config{}, err
 	}
-	defer file.Close()
-
-	decoder := json.NewDecoder(file)
-	err = decoder.Decode(&cfg)
-	return cfg, err
+	defer f.Close()
+	var c Config
+	err = json.NewDecoder(f).Decode(&c)
+	return c, err
 }
 
-func runScript(scriptPath string, cachePath string) error {
-	cmd := exec.Command("powershell.exe", "-ExecutionPolicy", "Bypass", "-File", scriptPath)
-	output, err := cmd.CombinedOutput()
+// --------------------------------------------------------------------
+// Script execution
+// --------------------------------------------------------------------
+func runScript(path string) ([]byte, error) {
+	cmd := exec.Command("powershell.exe",
+		"-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass",
+		"-File", path)
+	return cmd.CombinedOutput()
+}
+
+// --------------------------------------------------------------------
+// POST helpers
+// --------------------------------------------------------------------
+func postReport(cfg Config, module string, data []byte) error {
+	url := strings.TrimRight(cfg.BaseURL, "/") + "/submit/" + module
+
+	req, err := http.NewRequest("POST", url, bytes.NewReader(data))
 	if err != nil {
 		return err
 	}
-	return ioutil.WriteFile(cachePath, output, 0644)
-}
-
-func postReport(cfg Config, serialNumber string, module string, data []byte, baseDir string) error {
-	postURL := cfg.BaseURL + "report/check_in/"
-
-	passphrase := loadPassphrase(filepath.Join(baseDir, "config", "passphrase.yaml"))
-
-	payload := map[string]string{
-		"serial_number": serialNumber,
-		"platform":      "windows",
-		"module":        module,
-		"data":          string(data),
-	}
-
-	if passphrase != "" {
-		payload["passphrase"] = passphrase
-	}
-
-	payloadBytes, err := json.Marshal(payload)
-	if err != nil {
-		return err
-	}
-
-	req, err := http.NewRequest("POST", postURL, bytes.NewBuffer(payloadBytes))
 	req.Header.Set("Authorization", "Bearer "+cfg.Token)
 	req.Header.Set("Content-Type", "application/json")
 
-	client := &http.Client{}
-	resp, err := client.Do(req)
+	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
 		return err
 	}
 	defer resp.Body.Close()
 
-	if resp.StatusCode != http.StatusOK {
-		body, _ := ioutil.ReadAll(resp.Body)
-		return fmt.Errorf("HTTP Error: %s - %s", resp.Status, string(body))
+	if resp.StatusCode >= 300 {
+		b, _ := io.ReadAll(resp.Body)
+		return fmt.Errorf("submit %s → %s: %s", module, resp.Status, string(b))
 	}
-
 	return nil
 }
 
+// --------------------------------------------------------------------
+// Main
+// --------------------------------------------------------------------
 func main() {
-	baseDir := "C:\\ProgramData\\ManagedReporting"
-
-	logFile, err := os.OpenFile(filepath.Join(baseDir, "logs", "reporting.log"), os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0666)
-	if err != nil {
-		log.Fatalf("Unable to open log file: %v", err)
+	// ----- bootstrap -------------------------------------------------
+	if err := os.MkdirAll(filepath.Join(baseDir, "logs"), 0755); err != nil {
+		log.Fatalf("mkdir logs: %v", err)
 	}
-	log.SetOutput(logFile)
+	logFile, err := os.OpenFile(
+		filepath.Join(baseDir, "logs", "reporting.log"),
+		os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0666)
+	if err != nil {
+		log.Fatalf("open log: %v", err)
+	}
 	defer logFile.Close()
+	log.SetOutput(logFile)
 
-	configPath := filepath.Join(baseDir, "config", "preferences.json")
-	cfg, err := loadConfig(configPath)
+	cfg, err := loadConfig(filepath.Join(baseDir, "config", "preferences.json"))
 	if err != nil {
-		log.Fatalf("Failed to load configuration: %v", err)
+		log.Fatalf("load config: %v", err)
 	}
 
-	serialNumberCmd := exec.Command("powershell.exe", "-Command", "(Get-WmiObject Win32_BIOS).SerialNumber")
-	serialNumberRaw, err := serialNumberCmd.Output()
+	serialCmd := exec.Command("powershell.exe",
+		"-NoProfile", "-NonInteractive", "-Command",
+		"(Get-CimInstance -ClassName Win32_Bios).SerialNumber.Trim()")
+	serialRaw, err := serialCmd.Output()
 	if err != nil {
-		log.Fatalf("Failed to get serial number: %v", err)
+		log.Fatalf("serial: %v", err)
 	}
-	serialNumber := string(bytes.TrimSpace(serialNumberRaw))
+	serial := string(bytes.TrimSpace(serialRaw))
 
-	for _, script := range []string{"hardware.ps1", "software.ps1"} {
+	// default script list when not overridden in preferences.json
+	scriptMap := map[string]string{
+		"hardware.ps1":        "machine_win",
+		"software.ps1":        "applications_win",
+		"managedinstalls.ps1": "managedinstalls_win",
+	}
+	if len(cfg.Scripts) == 0 {
+		cfg.Scripts = []string{"hardware.ps1", "software.ps1", "managedinstalls.ps1"}
+	}
+
+	passphrase := loadPassphrase(filepath.Join(baseDir, "config", "passphrase.yaml"))
+
+	// ----- execute + submit -----------------------------------------
+	for _, script := range cfg.Scripts {
 		scriptPath := filepath.Join(baseDir, "scripts", script)
-		cacheFile := filepath.Join(baseDir, "cache", script[:len(script)-4]+".json")
 
-		err := runScript(scriptPath, cacheFile)
+		payload, err := runScript(scriptPath)
 		if err != nil {
-			log.Printf("Failed running script %s: %v", script, err)
+			log.Printf("run %s: %v", script, err)
 			continue
 		}
 
-		data, err := ioutil.ReadFile(cacheFile)
-		if err != nil {
-			log.Printf("Failed reading cache for %s: %v", script, err)
+		// inject serial_number / passphrase if the script didn’t add them
+		var m map[string]interface{}
+		if json.Unmarshal(payload, &m) == nil {
+			m["serial_number"] = serial
+			if passphrase != "" {
+				m["passphrase"] = passphrase
+			}
+			if patched, err := json.Marshal(m); err == nil {
+				payload = patched
+			}
+		}
+
+		mod := scriptMap[script]
+		if mod == "" {
+			log.Printf("skip %s – unknown module", script)
 			continue
 		}
 
-		err = postReport(cfg, serialNumber, script, data, baseDir)
-		if err != nil {
-			log.Printf("Failed posting %s data: %v", script, err)
+		if err := postReport(cfg, mod, payload); err != nil {
+			log.Printf("submit %s: %v", script, err)
 			continue
 		}
-
-		log.Printf("Successfully reported %s data.", script)
+		log.Printf("✓ %s → %s", script, mod)
 	}
 }
