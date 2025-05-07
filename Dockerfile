@@ -1,4 +1,4 @@
-FROM php:8.2-apache
+FROM php:8.2-apache AS prod
 
 # Define the application directory
 ENV APP_DIR=/var/munkireport
@@ -59,6 +59,9 @@ RUN rm -rf /var/www/html && \
 RUN sed -i 's/ServerTokens OS/ServerTokens Prod/' /etc/apache2/conf-available/security.conf && \
     sed -i 's/ServerSignature On/ServerSignature Off/' /etc/apache2/conf-available/security.conf
 
+# Silence Apache FQDN warning
+RUN echo "ServerName localhost" >> /etc/apache2/apache2.conf
+
 # Enable Apache’s rewrite module
 RUN a2enmod rewrite
 
@@ -91,3 +94,37 @@ EXPOSE 80 2222
 
 # Launch the script that prints sshd_config then starts SSH and Apache
 CMD ["/entrypoint.sh"]
+
+# ------------------------------------------------------------------
+#  dev image (build target "dev") – extra tools & debug mode
+# ------------------------------------------------------------------
+FROM prod AS dev
+
+# Copy .env.example to .env during image build
+RUN cp .env.example .env
+
+ENV APP_ENV=local \
+    DEBUG=TRUE \
+    XDEBUG_MODE=develop,coverage
+
+RUN apt-get update && \
+    apt-get install --no-install-recommends -y \
+      vim less netcat-openbsd iputils-ping build-essential autoconf pkg-config && \
+    pecl install xdebug && \
+    docker-php-ext-enable xdebug && \
+    rm -rf /var/lib/apt/lists/*
+
+RUN printf '%s\n' \
+    "error_reporting = E_ALL & ~E_DEPRECATED & ~E_USER_DEPRECATED" \
+    "display_errors  = Off" \
+    > /usr/local/etc/php/conf.d/98-deprecations-web.ini
+
+# Suppress PHP 8.2 deprecation notices in dev
+RUN echo "error_reporting = E_ALL & ~E_DEPRECATED & ~E_USER_DEPRECATED" \
+      > /usr/local/etc/php/conf.d/99-deprecations.ini
+
+# override Apache log format so every request hits stdout
+RUN sed -i 's/^CustomLog .* combined/CustomLog \/proc\/self\/fd\/1 combined/' \
+        /etc/apache2/sites-available/000-default.conf
+
+        
