@@ -2,7 +2,7 @@
 
 namespace munkireport\controller;
 
-use \Controller, \View;
+use \Controller;
 use League\Flysystem\Filesystem;
 use League\Flysystem\Adapter\Local;
 
@@ -33,11 +33,9 @@ class Install extends Controller
         $data['baseurl'] = conf('webhost');
     
         if ($isWindows) {
-            // Clearly serve the Windows install script
-            $this->view('install/install_script_windows', $data);
+            \view('install/install_script_windows', $data);
         } else {
-            // Serve the existing macOS install script
-            $this->view('install/install_script', $data);
+            \view('install/install_script', $data);
         }
     }
 
