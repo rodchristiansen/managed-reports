@@ -44,7 +44,7 @@ echo "MySQL is reachable"
 ##############################################################################
 echo "Running MunkiReport migrations"
 chmod +x "${PLEASE_CLI}"          # ensure it’s executable
-"${PLEASE_CLI}" migrate --force || true
+"${PLEASE_CLI}" migrate || true
 
 ##############################################################################
 # 4. Start sshd in background
