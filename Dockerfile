@@ -37,10 +37,14 @@ RUN printf '%s\n' \
 
 # ── Certificates ─────────────────────────────────────────
 COPY certs/AzureFederatedSSO.crt            /var/munkireport/local/certs/idp.crt
+
 COPY certs/DigiCertGlobalRootCA.crt.pem     /usr/local/share/ca-certificates/DigiCertGlobalRootCA.crt.pem
-RUN chmod 644 /usr/local/share/ca-certificates/DigiCertGlobalRootCA.crt.pem \
-              /var/munkireport/local/certs/idp.crt && \
+COPY certs/DigiCertGlobalRootCA.crt.pem     /home/site/DigiCertGlobalRootCA.pem
+
+RUN chmod 644 /home/site/DigiCertGlobalRootCA.pem
+RUN chmod 644 /var/munkireport/local/certs/idp.crt && \
     update-ca-certificates --fresh
+    
 
 # ── Application code ─────────────────────────────────────
 WORKDIR ${APP_DIR}

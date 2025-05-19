@@ -2,7 +2,7 @@
 set -e
 
 ######################################################################
-# 0) Load Azure-App-Service env-vars **before** we touch Laravel
+# Load Azure-App-Service env-vars **before** we touch Laravel
 ######################################################################
 if [ -f /opt/startup/container/appsvc/setenv.sh ]; then
   # Azure injects all App Settings here – source them so `please` sees
@@ -11,7 +11,7 @@ if [ -f /opt/startup/container/appsvc/setenv.sh ]; then
 fi
 
 ######################################################################
-# 1) Force a very light-weight cleanup of anything that might cause
+# Force a very light-weight cleanup of anything that might cause
 #    MunkiReport to boot with SQLite or with stale config.
 ######################################################################
 # - compiled (cached) configs & routes
@@ -24,22 +24,23 @@ rm -f /var/munkireport/storage/db/*.db || true
 rm -f /var/munkireport/bootstrap/cache/{config,routes}.php
 
 ######################################################################
-# 2) Run migrations (idempotent)
+# Prepare MySQL SSL
 ######################################################################
-/var/munkireport/please migrate || true   # never block container start
+if [ -n "$MYSQL_SSL_CA_B64" ] && [ ! -f /home/site/DigiCertCA.pem ]; then
+  echo "$MYSQL_SSL_CA_B64" | base64 -d > /home/site/DigiCertCA.pem
+  chmod 644 /home/site/DigiCertCA.pem
+  export CONNECTION_SSL_CA=/home/site/DigiCertCA.pem
+fi
 
 ######################################################################
-# 3) Start services (what you already had)
+# Run migrations (idempotent)
+######################################################################
+/var/munkireport/please migrate || true   # never block container start
+composer update --no-dev
+
+######################################################################
+# Start services (what you already had)
 ######################################################################
 mkdir -p /run/sshd
 /usr/sbin/sshd -D &
 exec apache2-foreground
-
-######################################################################
-# 4) MySQL SSL bundle (unchanged) – leave this after apache starts;
-#    it only sets env-vars for PHP’s PDO.
-######################################################################
-if [ -n "$MYSQL_SSL_CA_BUNDLE" ] && [ ! -f /tmp/mysql-ca.pem ]; then
-  printf '%s\n' "$MYSQL_SSL_CA_BUNDLE" > /tmp/mysql-ca.pem
-  export PDO_MYSQL_ATTR_SSL_CA=/tmp/mysql-ca.pem
-fi
