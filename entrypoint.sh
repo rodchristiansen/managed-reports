@@ -20,8 +20,8 @@ rm -f /var/munkireport/bootstrap/cache/{config,routes}.php || true
 # - leftover SQLite file (only if you’re on MySQL now)
 rm -f /var/munkireport/storage/db/*.db || true
 
-# - you can add more here if you know a file gets in the way,
-#   but the two lines above are all MunkiReport normally needs.
+# drop any cached configs before Apache starts 
+rm -f /var/munkireport/bootstrap/cache/{config,routes}.php
 
 ######################################################################
 # 2) Run migrations (idempotent)

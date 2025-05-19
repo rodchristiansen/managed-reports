@@ -31,6 +31,8 @@ RUN printf '%s\n' \
       "upload_max_filesize = 50M" \
       "post_max_size      = 50M" \
       "error_reporting    = E_ALL & ~E_DEPRECATED & ~E_USER_DEPRECATED" \
+      "display_errors     = Off" \
+      "log_errors         = On" \
     > /usr/local/etc/php/conf.d/90-runtime.ini
 
 # ── Certificates ─────────────────────────────────────────
