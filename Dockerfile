@@ -26,9 +26,12 @@ RUN apt-get update && \
 RUN docker-php-ext-configure ldap && \
     docker-php-ext-install -j"$(nproc)" curl pdo_mysql soap ldap zip
 
-# PHP upload limits
-RUN echo "upload_max_filesize = 50M\npost_max_size = 50M" \
-      > /usr/local/etc/php/conf.d/uploads.ini
+# ── Upload limits + silence PHP-8 deprecations ───────────
+RUN printf '%s\n' \
+      "upload_max_filesize = 50M" \
+      "post_max_size      = 50M" \
+      "error_reporting    = E_ALL & ~E_DEPRECATED & ~E_USER_DEPRECATED" \
+    > /usr/local/etc/php/conf.d/90-runtime.ini
 
 # ── Certificates ─────────────────────────────────────────
 COPY certs/AzureFederatedSSO.crt            /var/munkireport/local/certs/idp.crt
@@ -41,12 +44,18 @@ RUN chmod 644 /usr/local/share/ca-certificates/DigiCertGlobalRootCA.crt.pem \
 WORKDIR ${APP_DIR}
 COPY . ${APP_DIR}
 
+# REMOVE ANY STATIC .env SO RUNTIME ENV VARS TAKE EFFECT
+RUN rm -f .env
+
 # Composer (dependencies)
 COPY --from=composer:2.2.6 /usr/bin/composer /usr/local/bin/composer
 RUN composer install --no-dev && composer dumpautoload -o
 
 # Writable DB directory (if you ever switch to sqlite)
 RUN mkdir -p app/db && chmod -R 777 app/db
+
+# ── make sure no stale cached config ships in the image ──────────
+RUN rm -f bootstrap/cache/config.php bootstrap/cache/routes.php
 
 # Apache doc-root
 RUN rm -rf /var/www/html && ln -s /var/munkireport/public /var/www/html
@@ -91,10 +100,3 @@ RUN apt-get update && \
         vim less netcat-openbsd iputils-ping build-essential autoconf pkg-config && \
     pecl install xdebug && docker-php-ext-enable xdebug && \
     rm -rf /var/lib/apt/lists/*
-
-RUN printf '%s\n' \
-    "error_reporting = E_ALL & ~E_DEPRECATED & ~E_USER_DEPRECATED" \
-    "display_errors  = Off" \
-    > /usr/local/etc/php/conf.d/98-deprecations-web.ini && \
-    echo "error_reporting = E_ALL & ~E_DEPRECATED & ~E_USER_DEPRECATED" \
-      > /usr/local/etc/php/conf.d/99-deprecations.ini
