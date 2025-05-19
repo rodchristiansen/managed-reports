@@ -45,7 +45,7 @@ WORKDIR ${APP_DIR}
 COPY . ${APP_DIR}
 
 # REMOVE ANY STATIC .env SO RUNTIME ENV VARS TAKE EFFECT
-RUN rm -f .env
+RUN rm -f .env .env.local
 
 # Composer (dependencies)
 COPY --from=composer:2.2.6 /usr/bin/composer /usr/local/bin/composer
