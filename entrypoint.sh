@@ -26,14 +26,17 @@ rm -f /var/munkireport/bootstrap/cache/{config,routes}.php
 ######################################################################
 # Prepare MySQL SSL
 ######################################################################
-if [ -n "$MYSQL_SSL_CA_B64" ] && [ ! -f /home/site/DigiCertCA.pem ]; then
-  echo "$MYSQL_SSL_CA_B64" | base64 -d > /home/site/DigiCertCA.pem
-  chmod 644 /home/site/DigiCertCA.pem
-  export CONNECTION_SSL_CA=/home/site/DigiCertCA.pem
+if [ -n "$MYSQL_SSL_CA_B64" ] && [ ! -f /home/site/DigiCertGlobalRootCA.pem ]; then
+  echo "$MYSQL_SSL_CA_B64" | base64 -d > /home/site/DigiCertGlobalRootCA.pem
+  chmod 644 /home/site/DigiCertGlobalRootCA.pem
 fi
-export CONNECTION_SSL_CA=/home/site/DigiCertCA.pem
+
+export CONNECTION_SSL_CA=/home/site/DigiCertGlobalRootCA.pem
 export MYSQL_ATTR_SSL_CA=$CONNECTION_SSL_CA
 export PDO_MYSQL_ATTR_SSL_CA=$CONNECTION_SSL_CA
+
+echo "DB host: $CONNECTION_HOST"
+echo "CA file: $CONNECTION_SSL_CA"
 
 ######################################################################
 # Run migrations (idempotent)
