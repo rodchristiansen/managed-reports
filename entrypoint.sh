@@ -24,9 +24,9 @@ rm -f /var/munkireport/storage/db/*.db || true
 rm -f /var/munkireport/bootstrap/cache/{config,routes}.php
 
 ######################################################################
-# Prepare MySQL SSL
+# Prepare MySQL SSL  (match Debian store)
 ######################################################################
-export CONNECTION_SSL_CA=/usr/local/share/ca-certificates/DigiCertGlobalRootCA.crt.pem
+export CONNECTION_SSL_CA=/etc/ssl/certs/DigiCertGlobalRootCA.pem
 export MYSQL_ATTR_SSL_CA=$CONNECTION_SSL_CA
 export PDO_MYSQL_ATTR_SSL_CA=$CONNECTION_SSL_CA
 
