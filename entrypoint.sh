@@ -31,12 +31,15 @@ if [ -n "$MYSQL_SSL_CA_B64" ] && [ ! -f /home/site/DigiCertCA.pem ]; then
   chmod 644 /home/site/DigiCertCA.pem
   export CONNECTION_SSL_CA=/home/site/DigiCertCA.pem
 fi
+export CONNECTION_SSL_CA=/home/site/DigiCertCA.pem
+export MYSQL_ATTR_SSL_CA=$CONNECTION_SSL_CA
+export PDO_MYSQL_ATTR_SSL_CA=$CONNECTION_SSL_CA
 
 ######################################################################
 # Run migrations (idempotent)
 ######################################################################
 /var/munkireport/please migrate || true   # never block container start
-composer update --no-dev
+# composer update --no-dev
 
 ######################################################################
 # Start services (what you already had)
