@@ -1,24 +1,75 @@
 # docker-compose.dev.yml
+version: "3.9"
+
 services:
+  mysql:
+    image: mysql:8
+    container_name: mr-mysql
+    environment:
+      MYSQL_ROOT_PASSWORD: rootpw
+      MYSQL_DATABASE: munkireport
+      MYSQL_USER: reportingadmin
+      MYSQL_PASSWORD: changeme
+    ports:
+      - "3306:3306"
+    volumes:
+      # persistent data
+      - mysql_data:/var/lib/mysql
+      # TLS material
+      - ./mysql.crt:/etc/mysql/mysql.crt:ro
+      - ./mysql.key:/etc/mysql/mysql.key:ro
+    command: >
+      --require_secure_transport=ON
+      --ssl_ca=/etc/mysql/mysql.crt
+      --ssl_cert=/etc/mysql/mysql.crt
+      --ssl_key=/etc/mysql/mysql.key
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -pchangeme -ureportingadmin -h localhost"]
+      interval: 5s
+      timeout: 2s
+      retries: 10
+
   php:
     build:
       context: .
-      target: dev
+      target: dev          # <- uses the “dev” stage in your Dockerfile
       args:
         ROOT_PASS: ${ROOT_PASS:-guacamole}
+    container_name: mr-web
+    depends_on:
+      mysql:
+        condition: service_healthy
     working_dir: /var/munkireport
     volumes:
-      - mr_db:/var/munkireport/storage/db
+      - mr_db:/var/munkireport/storage/db   # still handy if you flip to sqlite
+      - ./mysql.crt:/etc/ssl/certs/mysql.crt:ro
     ports:
-      - "8080:80"
+      - "8080:80"       # browse http://localhost:8080
+      - "2222:2222"     # optional: SSH into the container
     environment:
-      - CONNECTION_DRIVER="sqlite"
-      - CONNECTION_DATABASE=/var/munkireport/storage/db/mr.db
-      - MR_PASSPHRASE=
-      - AUTH_METHODS="NOAUTH"
-      - APP_ENV=local
-      - DEBUG=FALSE
-      - XDEBUG_MODE=develop,coverage
+      # ---- MunkiReport ↓ ----------------------------------------------------
+      CONNECTION_DRIVER: "mysql"
+      CONNECTION_HOST:   "mysql"
+      CONNECTION_PORT:   "3306"
+      CONNECTION_DATABASE: "munkireport"
+      CONNECTION_USERNAME: "reportingadmin"
+      CONNECTION_PASSWORD: "changeme"
+
+      # TLS for every MySQL client (PDO & mysqli)
+      CONNECTION_SSL_ENABLED: "FALSE"
+      CONNECTION_SSL_CA:         "/etc/ssl/certs/ca-certificates.crt"
+      MYSQL_ATTR_SSL_CA:         "/etc/ssl/certs/ca-certificates.crt"
+      MYSQLI_CLIENT_SSL_CA:      "/etc/ssl/certs/ca-certificates.crt"
+      PDO_MYSQL_ATTR_SSL_CA:     "/etc/ssl/certs/ca-certificates.crt"
+      PDO_MYSQL_ATTR_SSL_VERIFY_SERVER_CERT: "1"
+
+      # ---- general app ------------------------------------------------------
+      APP_ENV: "local"
+      APP_DEBUG: "false"
+      DEBUG: "FALSE"
+      AUTH_METHODS: "NOAUTH"
+      XDEBUG_MODE: "develop,coverage"
 
 volumes:
-  mr_db:
+  mysql_data: {}
+  mr_db: {}

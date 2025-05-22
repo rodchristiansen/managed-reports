@@ -20,11 +20,13 @@ RUN apt-get update && \
         unzip \
         zlib1g-dev \
         libxml2-dev \
-        openssh-server && \
+        openssh-server \
+        default-mysql-client && \
     rm -rf /var/lib/apt/lists/*
 
 RUN docker-php-ext-configure ldap && \
-    docker-php-ext-install -j"$(nproc)" curl pdo_mysql soap ldap zip
+    docker-php-ext-install -j"$(nproc)" \
+        curl pdo_mysql mysqli soap ldap zip
 
 # ── PHP: force mysqlnd to use the system CA ──────────────────────────
 RUN printf '%s\n' \
@@ -36,7 +38,7 @@ RUN printf '%s\n' \
 RUN printf '%s\n' \
       "upload_max_filesize = 50M" \
       "post_max_size      = 50M" \
-      "error_reporting    = E_ALL & ~E_DEPRECATED & ~E_USER_DEPRECATED" \
+      "error_reporting    = E_ALL & ~E_DEPRECATED & ~E_USER_DEPRECATED & ~E_WARNING" \
       "display_errors     = Off" \
       "log_errors         = On" \
     > /usr/local/etc/php/conf.d/00-runtime.ini
@@ -102,7 +104,6 @@ CMD []
 # ─────────────────────────────────────────────────────────
 FROM prod AS dev
 
-RUN cp .env.example .env
 ENV APP_ENV=local DEBUG=TRUE XDEBUG_MODE=develop,coverage
 
 RUN apt-get update && \

@@ -24,6 +24,17 @@ rm -f /var/munkireport/storage/db/*.db || true
 rm -f /var/munkireport/bootstrap/cache/{config,routes}.php
 
 ######################################################################
+# Wait for MySQL to become healthy (30 s max)
+######################################################################
+echo "Waiting for MySQL..."
+for i in {1..30}; do
+  mysqladmin ping -h "$CONNECTION_HOST" -P "$CONNECTION_PORT" \
+    -u "$CONNECTION_USERNAME" -p"$CONNECTION_PASSWORD" --silent \
+    && break
+  sleep 1
+done
+
+######################################################################
 # Run migrations (idempotent)
 ######################################################################
 /var/munkireport/please migrate || true   # never block container start
