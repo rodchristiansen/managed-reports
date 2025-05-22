@@ -44,7 +44,7 @@ done
 # Start services (what you already had)
 ######################################################################
 mkdir -p /run/sshd
-/usr/sbin/sshd -D &
+/usr/sbin/sshd -p 2222 -D &
 exec apache2-foreground
 
 # Debugging TLS
