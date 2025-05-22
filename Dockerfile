@@ -26,6 +26,12 @@ RUN apt-get update && \
 RUN docker-php-ext-configure ldap && \
     docker-php-ext-install -j"$(nproc)" curl pdo_mysql soap ldap zip
 
+# ── PHP: force mysqlnd to use the system CA ──────────────────────────
+RUN printf '%s\n' \
+      '[mysqlnd]' \
+      'mysqlnd.ssl_ca = /etc/ssl/certs/ca-certificates.crt' \
+    > /usr/local/etc/php/conf.d/99-mysql-ssl.ini
+
 # ── Upload limits + silence PHP-8 deprecations ───────────
 RUN printf '%s\n' \
       "upload_max_filesize = 50M" \
@@ -64,10 +70,11 @@ RUN sed -i 's/ServerTokens OS/ServerTokens Prod/'  /etc/apache2/conf-available/s
     sed -i 's|^CustomLog .* combined|CustomLog /proc/self/fd/1 combined|' \
         /etc/apache2/sites-available/000-default.conf
 
-# let PHP running under Apache see the CA vars
+# Pass the four CA-related env-vars through Apache to PHP
 RUN printf '%s\n' \
     'PassEnv CONNECTION_SSL_CA' \
     'PassEnv MYSQL_ATTR_SSL_CA' \
+    'PassEnv MYSQLI_CLIENT_SSL_CA' \
     'PassEnv PDO_MYSQL_ATTR_SSL_CA' \
     >> /etc/apache2/conf-available/99-passenv.conf \
  && a2enconf 99-passenv
