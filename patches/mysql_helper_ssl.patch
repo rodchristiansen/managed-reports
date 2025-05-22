@@ -1,0 +1,21 @@
+*** Begin Patch
+*** Update File: vendor/munkireport/munkireport-php/app/helpers/mysql_helper.php
+@@
+-    return $link;
++    /* ---------- SSL fix for Azure --------------------------------------- */
++    if (getenv('CONNECTION_SSL_ENABLED') === 'TRUE') {
++        $ca = getenv('MYSQLI_CLIENT_SSL_CA') ?: getenv('CONNECTION_SSL_CA');
++        if ($ca && file_exists($ca)) {
++            mysqli_ssl_set($link, NULL, NULL, $ca, NULL, NULL);
++        }
++        mysqli_options($link, MYSQLI_OPT_SSL_VERIFY_SERVER_CERT, true);
++        $flags = MYSQLI_CLIENT_SSL;
++        @mysqli_real_connect(
++            $link, $host, $username, $password,
++            $database ?: '', $port ?: 3306, NULL, $flags
++        ) or die(mysqli_connect_error());
++    }
++    /* -------------------------------------------------------------------- */
++    return $link;
+ }
+*** End Patch
