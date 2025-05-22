@@ -46,3 +46,12 @@ done
 mkdir -p /run/sshd
 /usr/sbin/sshd -D &
 exec apache2-foreground
+
+# Debugging TLS
+php -r '
+  $out = [
+    "MYSQLI_CLIENT_SSL_CA" => getenv("MYSQLI_CLIENT_SSL_CA"),
+    "bytes_sent_ssl"       => mysqli_get_client_stats()["bytes_sent_ssl"] ?? 0
+  ];
+  file_put_contents("/var/munkireport/debug_tls.json", json_encode($out, JSON_PRETTY_PRINT));
+';
