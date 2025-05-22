@@ -35,16 +35,6 @@ RUN printf '%s\n' \
       "log_errors         = On" \
     > /usr/local/etc/php/conf.d/00-runtime.ini
 
-# ── Certificates ─────────────────────────────────────────
-COPY certs/AzureFederatedSSO.crt            /var/munkireport/local/certs/idp.crt
-COPY certs/DigiCertGlobalRootCA.crt.pem     /usr/local/share/ca-certificates/DigiCertGlobalRootCA.crt.pem
-# convert -> /etc/ssl/certs/…  and keep a *symlink* pointing back
-RUN chmod 644 /usr/local/share/ca-certificates/DigiCertGlobalRootCA.crt.pem \
-              /var/munkireport/local/certs/idp.crt && \
-    update-ca-certificates --fresh && \
-    ln -sf /etc/ssl/certs/DigiCertGlobalRootCA.pem \
-          /usr/local/share/ca-certificates/DigiCertGlobalRootCA.crt.pem
-
 # ── Application code ─────────────────────────────────────
 WORKDIR ${APP_DIR}
 COPY . ${APP_DIR}
