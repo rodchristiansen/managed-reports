@@ -64,6 +64,14 @@ RUN sed -i 's/ServerTokens OS/ServerTokens Prod/'  /etc/apache2/conf-available/s
     sed -i 's|^CustomLog .* combined|CustomLog /proc/self/fd/1 combined|' \
         /etc/apache2/sites-available/000-default.conf
 
+# let PHP running under Apache see the CA vars
+RUN printf '%s\n' \
+    'PassEnv CONNECTION_SSL_CA' \
+    'PassEnv MYSQL_ATTR_SSL_CA' \
+    'PassEnv PDO_MYSQL_ATTR_SSL_CA' \
+    >> /etc/apache2/conf-available/99-passenv.conf \
+ && a2enconf 99-passenv
+
 # ── SSH setup ────────────────────────────────────────────
 RUN ssh-keygen -A && \
     sed -i 's|^#Port .*|Port 2222|' /etc/ssh/sshd_config && \
