@@ -53,6 +53,8 @@ RUN rm -f .env .env.local
 # Composer (dependencies)
 COPY --from=composer:2.2.6 /usr/bin/composer /usr/local/bin/composer
 RUN composer install --no-dev && composer dumpautoload -o
+COPY patches/mysql_helper_ssl.patch /tmp/
+RUN patch -p1 < /tmp/mysql_helper_ssl.patch
 
 # Writable DB directory (if you ever switch to sqlite)
 RUN mkdir -p app/db && chmod -R 777 app/db
