@@ -52,7 +52,9 @@ jobs:
       shell: bash
       run: |
         # first tag returned by metadata-action is the sha-short one
-        SHA_TAG="$(echo "${{ steps.meta.outputs.tags }}" | cut -d',' -f1)"
+        FIRST_TAG="$(echo "${{ steps.meta.outputs.tags }}" | cut -d',' -f1)"
+        # extract the tag after the last colon
+        SHA_TAG="${FIRST_TAG##*:}"
 
         echo "SHA_TAG resolved to: ${SHA_TAG}"
 
