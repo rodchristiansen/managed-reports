@@ -47,13 +47,20 @@ jobs:
           type=sha,format=short        # e.g. 8b5e4f1
           type=ref,event=branch        # e.g. main
 
-    # grab JUST the sha-short tag (first in the list) → IMAGE_TAG
+    # ── grab the first tag (the sha-short) and expose it ─────────────
     - id: set-tag
       shell: bash
       run: |
-        SHA_TAG=$(echo "${{ steps.meta.outputs.tags }}" | cut -d',' -f1)
-        echo "image_tag=${SHA_TAG}" >> $GITHUB_OUTPUT
-        echo "IMAGE_TAG=${SHA_TAG}"  >> $GITHUB_ENV   # handy inside this job
+        # first tag returned by metadata-action is the sha-short one
+        SHA_TAG="$(echo "${{ steps.meta.outputs.tags }}" | cut -d',' -f1)"
+
+        echo "SHA_TAG resolved to: ${SHA_TAG}"
+
+        ## make it an *environment variable* for the rest of this job
+        echo "IMAGE_TAG=${SHA_TAG}" >> "${GITHUB_ENV}"
+
+        ## expose it as an *output* for downstream jobs
+        echo "image_tag=${SHA_TAG}" >> "${GITHUB_OUTPUT}"
 
     # ──────────────────────────────────────────────────────────────
     # 3. build & push
