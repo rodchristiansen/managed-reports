@@ -15,14 +15,15 @@ services:
     volumes:
       # persistent data
       - mysql_data:/var/lib/mysql
-      # TLS material
-      - ./mysql.crt:/etc/mysql/mysql.crt:ro
-      - ./mysql.key:/etc/mysql/mysql.key:ro
+      # --- TLS material ---------------------------
+      - ./tls/ca.crt:/etc/ssl/certs/ca-certificates.crt:ro
+      - ./tls/mysql.crt:/etc/mysql/ssl-cert.pem:ro
+      - ./tls/mysql.key:/etc/mysql/ssl-key.pem:ro
     command: >
       --require_secure_transport=ON
-      --ssl_ca=/etc/mysql/mysql.crt
-      --ssl_cert=/etc/mysql/mysql.crt
-      --ssl_key=/etc/mysql/mysql.key
+      --ssl_ca=/etc/ssl/certs/ca-certificates.crt
+      --ssl_cert=/etc/mysql/ssl-cert.pem
+      --ssl_key=/etc/mysql/ssl-key.pem
     healthcheck:
       test: ["CMD-SHELL", "mysqladmin ping -pchangeme -ureportingadmin -h localhost"]
       interval: 5s
@@ -32,7 +33,7 @@ services:
   php:
     build:
       context: .
-      target: dev          # <- uses the “dev” stage in your Dockerfile
+      target: prod
       args:
         ROOT_PASS: ${ROOT_PASS:-guacamole}
     container_name: mr-web
@@ -41,8 +42,7 @@ services:
         condition: service_healthy
     working_dir: /var/munkireport
     volumes:
-      - mr_db:/var/munkireport/storage/db   # still handy if you flip to sqlite
-      - ./mysql.crt:/etc/ssl/certs/mysql.crt:ro
+      - ./tls/ca.crt:/etc/ssl/certs/ca-certificates.crt:ro
     ports:
       - "8080:80"       # browse http://localhost:8080
       - "2222:2222"     # optional: SSH into the container
@@ -56,15 +56,16 @@ services:
       CONNECTION_PASSWORD: "changeme"
 
       # TLS for every MySQL client (PDO & mysqli)
-      CONNECTION_SSL_ENABLED: "FALSE"
-      CONNECTION_SSL_CA:         "/etc/ssl/certs/ca-certificates.crt"
-      MYSQL_ATTR_SSL_CA:         "/etc/ssl/certs/ca-certificates.crt"
-      MYSQLI_CLIENT_SSL_CA:      "/etc/ssl/certs/ca-certificates.crt"
-      PDO_MYSQL_ATTR_SSL_CA:     "/etc/ssl/certs/ca-certificates.crt"
+      CONNECTION_SSL_ENABLED:    "TRUE"
+      CONNECTION_SSL_CA:     "/etc/ssl/certs/ca-certificates.crt"
+      MYSQL_ATTR_SSL_CA:     "/etc/ssl/certs/ca-certificates.crt"
+      MYSQLI_CLIENT_SSL_CA:  "/etc/ssl/certs/ca-certificates.crt"
+      PDO_MYSQL_ATTR_SSL_CA: "/etc/ssl/certs/ca-certificates.crt"
       PDO_MYSQL_ATTR_SSL_VERIFY_SERVER_CERT: "1"
+      MYSQLI_CLIENT_SSL_DONT_VERIFY_SERVER_CERT: "1"
 
       # ---- general app ------------------------------------------------------
-      APP_ENV: "local"
+      APP_ENV: "production"
       APP_DEBUG: "false"
       DEBUG: "FALSE"
       AUTH_METHODS: "NOAUTH"

@@ -6,6 +6,9 @@
     "optimize-autoloader": true
   },
   "autoload": {
+    "files": [
+      "app/helpers/force_ssl_mysqli.php"
+    ],
     "psr-4": {
       "Tests\\": "tests/",
       "munkireport\\builders\\": "database/builders/",

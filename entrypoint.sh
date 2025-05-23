@@ -1,68 +1,44 @@
 #!/bin/bash
-set -euo pipefail
+set -eu
 
-######################################################################
-# Load Azure-App-Service env-vars **before** we touch Laravel
-######################################################################
-if [ -f /opt/startup/container/appsvc/setenv.sh ]; then
-  # Azure injects all App Settings here – source them so `please` sees
-  # CONNECTION_DRIVER, CONNECTION_HOST, etc. during this shell session.
-  . /opt/startup/container/appsvc/setenv.sh
-fi
+export PHP_INI_SCAN_DIR="${PHP_INI_DIR:-/usr/local/etc/php}/conf.d"
 
-######################################################################
-# Force a very light-weight cleanup of anything that might cause
-#    MunkiReport to boot with SQLite or with stale config.
-######################################################################
-# - compiled (cached) configs & routes
-rm -f /var/munkireport/bootstrap/cache/{config,routes}.php || true
+# Azure injects env-vars here – source them so the shell sees CONNECTION_*.
+[ -f /opt/startup/container/appsvc/setenv.sh ] && \
+    . /opt/startup/container/appsvc/setenv.sh
 
-# - leftover SQLite file (only if you’re on MySQL now)
-rm -f /var/munkireport/storage/db/*.db || true
+# nuke stale Laravel caches
+rm -f /var/munkireport/bootstrap/cache/{config,routes}.php 2>/dev/null || true
 
-######################################################################
-# Wait for MySQL to become healthy (30 s max)
-######################################################################
-echo "Waiting for MySQL..."
+# wait for MySQL (max 30 s)
+echo "Waiting for MySQL @ ${CONNECTION_HOST}:${CONNECTION_PORT} …"
 for i in {1..30}; do
-  if [[ -n "${CONNECTION_SSL_CA:-}" ]]; then
-    mysqladmin --ssl-ca="$CONNECTION_SSL_CA" ping -h "$CONNECTION_HOST" -P "$CONNECTION_PORT" \
-      -u "$CONNECTION_USERNAME" -p"$CONNECTION_PASSWORD" --silent && break
-  else
-    mysqladmin ping -h "$CONNECTION_HOST" -P "$CONNECTION_PORT" \
-      -u "$CONNECTION_USERNAME" -p"$CONNECTION_PASSWORD" --silent && break
-  fi
+  mysqladmin --ssl-ca="${CONNECTION_SSL_CA:-/etc/ssl/certs/ca-certificates.crt}" \
+    ping -h "$CONNECTION_HOST" -P "$CONNECTION_PORT" \
+    -u "$CONNECTION_USERNAME" -p"$CONNECTION_PASSWORD" --silent && break
   sleep 1
 done
-if (( i == 30 )); then
-  echo "MySQL still unreachable after 30 s" >&2
-  exit 1
-fi
+[[ $i == 30 ]] && { echo "DB still unreachable."; exit 1; }
 
-######################################################################
-# Run migrations (idempotent)
-######################################################################
-/var/munkireport/please migrate || true   # never block container start
-# composer update --no-dev
+# run migrations (idempotent)
+echo "Running please migrate"
+( cd /var/munkireport && /var/munkireport/please migrate ) || true
 
-######################################################################
-# Start services (what you already had)
-######################################################################
+# tiny TLS probe so you can `kubectl exec cat /var/munkireport/debug_tls.json`
+php -r '
+  $db = mysqli_init();
+  mysqli_ssl_set($db, null, null, getenv("MYSQLI_CLIENT_SSL_CA"), null, null);
+  mysqli_real_connect(
+      $db, getenv("CONNECTION_HOST"), getenv("CONNECTION_USERNAME"),
+      getenv("CONNECTION_PASSWORD"), getenv("CONNECTION_DATABASE"), 3306,
+      null, MYSQLI_CLIENT_SSL
+  ) or die("DB connect failed");
+  $row = mysqli_fetch_row(mysqli_query($db,"SHOW STATUS LIKE \"Ssl_cipher\""));
+  file_put_contents("/var/munkireport/debug_tls.json",
+    json_encode(["cipher"=>$row[1]??"none"], JSON_PRETTY_PRINT));
+' 2>/dev/null || true
+
+# start SSH (2222) + Apache
 mkdir -p /run/sshd
 /usr/sbin/sshd -p 2222 -D &
-
-# Debug TLS connection
-php -d detect_unicode=0 -r '
-  $out = [
-    "MYSQLI_CLIENT_SSL_CA" => getenv("MYSQLI_CLIENT_SSL_CA"),
-    "bytes_sent_ssl"       => function_exists("mysqli_get_client_stats")
-                              ? (mysqli_get_client_stats()["bytes_sent_ssl"] ?? 0)
-                              : 0
-  ];
-  file_put_contents(
-    "/var/munkireport/debug_tls.json",
-    json_encode($out, JSON_PRETTY_PRINT)
-  );
-' || true  
-
 exec apache2-foreground

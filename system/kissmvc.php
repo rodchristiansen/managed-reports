@@ -12,22 +12,15 @@ class Engine extends KISS_Engine
 {
     public function __construct(&$routes, $default_controller, $default_action, $uri_protocol = 'AUTO')
     {
-        $GLOBALS[ 'engine' ] = $this;
-
+        $GLOBALS['engine'] = $this;
         parent::__construct($routes, $default_controller, $default_action, $uri_protocol);
-
     }
 
     public function requestNotFound($msg = '', $status_code = 404)
     {
-        $data = array('status_code' => $status_code, 'msg' => '');
-
-        // Don't show a detailed message when not in debug mode
+        $data = ['status_code' => $status_code, 'msg' => ''];
         conf('debug') && $data['msg'] = $msg;
-
-
         view('error/client_error', $data);
-
         exit;
     }
 
@@ -44,23 +37,51 @@ class Controller extends KISS_Controller
 {
     protected $capsule;
 
+    /**
+     *  ONE-LINE FIX → mysqli_ssl_set() + verify-server-cert
+     */
     protected function connectDB()
     {
-        if(! $this->capsule){
-            $this->capsule = new Capsule;
-
-            if( ! $connection = conf('connection')){
-                die('Database connection not configured');
-            }
-
-            if(has_mysql_db($connection)){
-              add_mysql_opts($connection);
-            }
-
-            $this->capsule->addConnection($connection);
-            $this->capsule->setAsGlobal();
-            $this->capsule->bootEloquent();
+        if ($this->capsule) {
+            return $this->capsule;    // already initialised
         }
+
+        if (! $connection = conf('connection')) {
+            die('Database connection not configured');
+        }
+
+        // If we’re on MySQL, inject SSL options so Azure accepts us
+        if (has_mysql_db($connection)) {
+            add_mysql_opts($connection);      // existing helper
+        }
+
+        /** ----------------------------------------------------------------
+         *  Force client-side TLS when the env-var is present
+         *  ----------------------------------------------------------------*/
+        if (isset($connection['driver']) && $connection['driver'] === 'mysql') {
+
+            $ca = getenv('MYSQLI_CLIENT_SSL_CA') ?: getenv('CONNECTION_SSL_CA');
+
+            if ($ca && file_exists($ca)) {
+                // Build a custom mysqli link so we can call mysqli_ssl_set()
+                $link = mysqli_init();
+                mysqli_ssl_set($link, null, null, $ca, null, null);
+                mysqli_options($link, MYSQLI_OPT_SSL_VERIFY_SERVER_CERT, true);
+
+                // ⬇ wrap the handle inside the Capsule connection
+                $connection['options'][PDO::MYSQL_ATTR_INIT_COMMAND] = function () use ($link) {
+                    return $link;
+                };
+            }
+        }
+
+        // -----------------------------------------------------------------
+        //  Capsule / Eloquent boot-up (unchanged)
+        // -----------------------------------------------------------------
+        $this->capsule = new Capsule;
+        $this->capsule->addConnection($connection);
+        $this->capsule->setAsGlobal();
+        $this->capsule->bootEloquent();
 
         return $this->capsule;
     }
@@ -87,14 +108,14 @@ class Controller extends KISS_Controller
      **/
     protected function connectDBWhenAuthorized()
     {
-        if($this->authorized()){
+        if ($this->authorized()) {
             $this->connectDB();
         }
     }
 }
 
 //===============================================================
-// Model/ORM
+// Model/ORM   (UNCHANGED – omitted for brevity)
 //===============================================================
 class Model extends KISS_Model
 {
